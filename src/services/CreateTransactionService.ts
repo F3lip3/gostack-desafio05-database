@@ -19,6 +19,20 @@ class CreateTransactionService {
     type,
     category: categoryTitle,
   }: Request): Promise<Transaction> {
+    if (!title) {
+      throw new AppError('The transaction title is required');
+    }
+
+    if (!value || value <= 0) {
+      throw new AppError(
+        'The transaction value is required and must be greather than zero',
+      );
+    }
+
+    if (!categoryTitle) {
+      throw new AppError('The transaction category is required');
+    }
+
     if (type !== 'income' && type !== 'outcome') {
       throw new AppError(
         'Invalid type. Accepted values are "income" or "outcome"',
