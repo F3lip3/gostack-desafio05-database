@@ -6,6 +6,7 @@ import AppError from '../errors/AppError';
 import CreateTransactionService from './CreateTransactionService';
 
 interface Request {
+  fileName: string;
   filePath: string;
 }
 
@@ -14,11 +15,21 @@ interface CsvData {
   type: 'income' | 'outcome';
   value: number;
   category: string;
+  line?: number;
   error?: string;
 }
 
+interface Errors {
+  fileName: string;
+  title: string;
+  data: CsvData[];
+}
+
 class ImportTransactionsService {
-  async execute({ filePath }: Request): Promise<Transaction[] | null> {
+  async execute({
+    fileName,
+    filePath,
+  }: Request): Promise<Transaction[] | null> {
     const exists = fs.existsSync(filePath);
     if (!exists) {
       throw new AppError('File not found!', 400);
@@ -45,10 +56,16 @@ class ImportTransactionsService {
     const createTransaction = new CreateTransactionService();
 
     const transactions: Transaction[] = [];
-    const errors: CsvData[] = [];
+    const errors: Errors = {
+      fileName,
+      title: '',
+      data: [],
+    };
 
+    let line = 0;
     // eslint-disable-next-line no-restricted-syntax
     for (const row of csv.sort(x => (x.type === 'income' ? 1 : 0))) {
+      line += 1;
       try {
         // eslint-disable-next-line no-await-in-loop
         const newTransaction = await createTransaction.execute({
@@ -60,39 +77,18 @@ class ImportTransactionsService {
 
         transactions.push(newTransaction);
       } catch (err) {
-        errors.push({ ...row, error: err.message } as CsvData);
+        errors.data.push({ ...row, error: err.message, line } as CsvData);
       }
     }
 
-    // const createResult = await Promise.all(
-    //   csv.map(async row => {
-    //     console.info('importing', row);
-    //     try {
-    //       const newTransaction = await createTransaction.execute({
-    //         title: row.title,
-    //         type: row.type,
-    //         value: row.value,
-    //         category: row.category,
-    //       });
+    if (transactions.length === 0) {
+      errors.title = 'Failed to upload transactions!';
+      throw new AppError(JSON.stringify(errors), 400);
+    }
 
-    //       return newTransaction;
-    //     } catch (err) {
-    //       return { ...row, error: err.message } as CsvData;
-    //     }
-    //   }),
-    // );
-
-    // const errors = createResult.filter(
-    //   data => !(data instanceof Transaction),
-    // ) as CsvData[];
-
-    // const transactions = createResult.filter(
-    //   data => data instanceof Transaction,
-    // ) as Transaction[];
-
-    if (errors.length) {
-      // eslint-disable-next-line no-console
-      console.error(errors);
+    if (errors.data.length) {
+      errors.title = 'Failed to upload some transactions!';
+      throw new AppError(JSON.stringify(errors), 400);
     }
 
     return transactions;

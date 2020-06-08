@@ -35,6 +35,8 @@ class Transaction {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  error?: string;
 }
 
 export default Transaction;
